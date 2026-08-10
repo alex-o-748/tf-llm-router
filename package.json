@@ -1,0 +1,19 @@
+{
+  "name": "llm-router",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Toolforge webservice proxying OpenAI-compatible chat completions to Wikimedia Lift Wing and HuggingFace.",
+  "license": "MIT",
+  "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "undici": "^7.16.0"
+  }
+}
