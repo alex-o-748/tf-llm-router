@@ -191,12 +191,20 @@ Everything is an envvar; nothing is committed. On Toolforge use
 | `HF_MAX_BODY_BYTES` | `204800` |
 | `HF_TIMEOUT_MS` | `60000` |
 | `HF_BILL_TO` | `wikimedia` |
-| `HF_PROXY_URL` | unset — likely needs `http://webproxy.eqiad.wmnet:8080` |
+| `HF_PROXY_URL` | unset (Toolforge Kubernetes pods reach the general internet directly) |
 | `RATE_LIMIT_PER_MIN` | `0` (disabled) |
 
-`HF_PROXY_URL`: Toolforge reaches the general internet through a web proxy,
-while Wikimedia-hosted endpoints are reachable directly. If `/hf` fails with a
-network error after deployment, this is the first thing to set.
+`HF_PROXY_URL` / `LIFTWING_PROXY_URL`: leave both unset on Toolforge. Pods on
+the current Kubernetes-based build service have direct internet egress —
+verified from a live tool (`llm-router`) on 2026-08-10, both by curling
+`/hf` successfully with no proxy configured and by confirming
+`webproxy.eqiad.wmnet:8080` (a production-network host, `wmnet` suffix) times
+out even from the Toolforge bastion. An earlier version of this doc claimed
+`HF_PROXY_URL` was required and suggested that host; that was leftover
+grid-engine-era guidance that doesn't apply to the Kubernetes build service.
+The envvar and the `ProxyAgent` plumbing behind it (`lib/upstream.js`) are
+kept only in case some *other* outbound proxy is ever needed for a specific
+upstream — not because one is needed today.
 
 `RATE_LIMIT_PER_MIN`: the Worker had a per-IP cap of 20/min. It is ported but
 **off by default**, because the second consumer is a batch job calling from a
