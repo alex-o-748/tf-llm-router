@@ -14,11 +14,18 @@ This is the LLM-routing half of the [public-ai-proxy](https://github.com/alex-o-
 Cloudflare Worker, ported to Node. Source fetching and the commercial
 API-key-gated providers are deliberately not included.
 
-## ⚠️ Read this first: Toolforge does *not* relax the Lift Wing rate limit
+## ⚠️ Rate limit: docs say Toolforge doesn't get relief; live use hasn't hit one
 
 The premise for this port was that calling Lift Wing from inside Wikimedia
 infrastructure would avoid the external rate limit and make the approved-bot
-JWT unnecessary. **That turns out not to hold for Toolforge.**
+JWT unnecessary. **The docs say that doesn't hold for Toolforge** — but a
+tool running on Toolforge, sending sustained `/liftwing` traffic over time,
+has not observed any `429`s in practice. That's a real-world data point, not
+a full contradiction of the docs: it wasn't confirmed whether `LIFTWING_TOKEN`
+was set during that observation, so it doesn't yet distinguish "the JWT is
+doing its job" from "Toolforge isn't actually rate-limited here." See
+[Verifying on Toolforge](#verifying-on-toolforge) for what's still needed to
+settle it, and keep `LIFTWING_TOKEN` configured until it is.
 
 Wikitech's [Lift Wing usage docs](https://wikitech.wikimedia.org/wiki/Machine_Learning/LiftWing/Usage)
 split access into two paths:
@@ -43,11 +50,14 @@ Consequences, all of which are reflected in the code:
 - Rate-limit relief has to come from the JWT or from an OAuth2 token that
   elevates the caller to the internal tier — not from where the code runs.
 
-**This is unverified against a live Toolforge host.** It is read off the
-official docs, which are unambiguous on the point, but nobody has yet run the
-request from inside Toolforge and compared the observed limit. That is the one
-open item; see [Verifying on Toolforge](#verifying-on-toolforge) for the
-commands. The sibling batch service needs the same answer.
+**Partially verified against a live Toolforge host.** The docs are
+unambiguous that Toolforge lands on the external path, but a tool running on
+Toolforge has sent sustained `/liftwing` traffic without seeing a `429`. What's
+still missing is whether `LIFTWING_TOKEN` was attached during that traffic —
+without knowing that, it's not possible to tell whether the JWT is doing the
+work the docs predict, or whether Toolforge simply isn't hitting the limit
+regardless. See [Verifying on Toolforge](#verifying-on-toolforge) for the
+remaining check. The sibling batch service needs the same answer.
 
 ## API
 
@@ -258,7 +268,16 @@ To redeploy after a push: `toolforge build start <url>` again, then
 
 ## Verifying on Toolforge
 
-The one open item. From a Toolforge shell (`become <toolname>`):
+**Update:** a tool running on Toolforge has sent sustained `/liftwing`
+traffic over time without ever seeing a `429`. That's real-world evidence
+against the docs-based assumption above, but it isn't conclusive on its own:
+it's unconfirmed whether `LIFTWING_TOKEN` was attached to that traffic. If it
+was, the JWT could be exactly what the docs predict — lifting the caller into
+a higher tier — rather than Toolforge itself being exempt from the limit. The
+remaining open item is narrower than before: run the anonymous-vs-JWT
+comparison below and note which one (if either) actually avoids the `429`.
+
+From a Toolforge shell (`become <toolname>`):
 
 ```sh
 # 1. Is the internal endpoint reachable at all? Expected: it is not.
