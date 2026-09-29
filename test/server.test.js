@@ -432,3 +432,60 @@ test("the rate limiter is off by default and enforced when configured", async ()
     { RATE_LIMIT_PER_MIN: "2" },
   );
 });
+
+test("/liftwing translates a :predict model to and from chat-completions", async () => {
+  await withServers(async ({ stub, proxy }) => {
+    stub.reply = {
+      status: 200,
+      headers: {},
+      body: JSON.stringify({
+        reasoning: "[TextContent(text='Check the source.')]",
+        verdict: "[TextContent(text='{\"verdict\": \"SUPPORTED\", \"comments\": \"It\\'s stated.\"}')]",
+      }),
+    };
+    const res = await post(proxy, "/liftwing", {
+      ...VALID_REQUEST,
+      model: "llm-gpt-oss-safeguard-20b",
+    });
+    assert.equal(res.status, 200);
+    assert.equal(stub.lastRequest.path, "/models/llm-gpt-oss-safeguard-20b:predict");
+    assert.deepEqual(stub.lastRequest.body, {
+      messages: [{ role: "user", content: "Does the source support the claim?" }],
+      developer_prompt: "You verify citations.",
+      max_tokens: 4096,
+      temperature: 0.1,
+    });
+    assert.equal(stub.lastRequest.headers["api-user-agent"] !== undefined, true);
+    const json = await res.json();
+    assert.equal(
+      json.choices[0].message.content,
+      '{"verdict": "SUPPORTED", "comments": "It\'s stated."}',
+    );
+    assert.equal(json.choices[0].finish_reason, "stop");
+    assert.equal(res.headers.get("access-control-allow-origin"), WIKI_ORIGIN);
+  });
+});
+
+test("/liftwing passes :predict upstream errors through", async () => {
+  await withServers(async ({ stub, proxy }) => {
+    stub.reply = { status: 429, headers: { "retry-after": "5" }, body: "slow down" };
+    const res = await post(proxy, "/liftwing", {
+      ...VALID_REQUEST,
+      model: "llm-gpt-oss-safeguard-20b",
+    });
+    assert.equal(res.status, 429);
+    assert.equal(res.headers.get("retry-after"), "5");
+  });
+});
+
+test("/liftwing rejects streaming for a :predict model", async () => {
+  await withServers(async ({ stub, proxy }) => {
+    const res = await post(proxy, "/liftwing", {
+      ...VALID_REQUEST,
+      model: "llm-gpt-oss-safeguard-20b",
+      stream: true,
+    });
+    assert.equal(res.status, 400);
+    assert.equal(stub.lastRequest, null);
+  });
+});
