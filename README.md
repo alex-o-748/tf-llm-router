@@ -53,7 +53,7 @@ commands. The sibling batch service needs the same answer.
 
 | Route | Method | Upstream |
 | --- | --- | --- |
-| `/liftwing` | `POST` | `https://api.wikimedia.org/service/lw/inference/v1/models/<model>/openai/v1/chat/completions` |
+| `/liftwing` | `POST` | `https://api.wikimedia.org/service/lw/inference/v1/models/<model>/openai/v1/chat/completions`, or `…/<model>:predict` for models in `LIFTWING_PREDICT_MODELS` (see [KServe `:predict` models](#kserve-predict-models)) |
 | `/hf` | `POST` | `https://router.huggingface.co/v1/chat/completions` |
 | `/liftwing`, `/hf` | `OPTIONS` | CORS preflight (`204`) |
 | `/`, `/healthz` | `GET` | Health check (`200 {"ok":true}`) |
@@ -117,6 +117,36 @@ never satisfy, and in a browser could trigger an auth prompt. The upstream
 reason is preserved in the message, because it is usually a User-Agent policy
 block or an expired token.
 
+### KServe `:predict` models
+
+Some Lift Wing models are not served behind an OpenAI-compatible endpoint.
+`llm-gpt-oss-safeguard-20b` ([T439395](https://phabricator.wikimedia.org/T439395))
+is only reachable at `…/models/llm-gpt-oss-safeguard-20b:predict`, KServe's
+native route, which differs from chat-completions both ways:
+
+| | chat-completions | `:predict` |
+| --- | --- | --- |
+| System prompt | `system` message | top-level `developer_prompt` |
+| Answer | `choices[0].message.content` | `verdict`, as Python `repr()` of a `[TextContent(text='…')]` list |
+| Reasoning | — | `reasoning`, same repr shape |
+
+Callers don't see any of this. `/liftwing` takes the usual chat-completions
+request for these models and returns the usual chat-completions response
+(`lib/kserve.js`):
+
+- `system`/`developer` messages are joined into `developer_prompt`; only
+  `max_tokens`, `temperature` and `top_p` are forwarded
+  (`response_format` is dropped).
+- The `TextContent` repr is decoded (Python string escapes included) into
+  `message.content`; the reasoning goes to `message.reasoning_content`.
+- `:predict` reports no `finish_reason` or token counts. `finish_reason` is
+  `"length"` when there is reasoning but no answer (what a budget cut
+  mid-reasoning looks like), otherwise `"stop"`; `usage` is zeros.
+- `stream: true` is rejected with `400`, since `:predict` does not stream.
+
+When Lift Wing adds a chat-completions endpoint for a model, removing it from
+`LIFTWING_PREDICT_MODELS` is the whole migration.
+
 ## Behaviour ported from the Worker
 
 - **`<think>` stripping.** Lift Wing serves Qwen3 reasoning models that may
@@ -179,7 +209,8 @@ Everything is an envvar; nothing is committed. On Toolforge use
 | --- | --- |
 | `PORT` | `8000` (assigned by Toolforge — never hardcode) |
 | `LIFTWING_BASE` | `https://api.wikimedia.org/service/lw/inference/v1/models` |
-| `LIFTWING_ALLOWED_MODELS` | `llm-qwen3-14b,llm-qwen36-27b` |
+| `LIFTWING_ALLOWED_MODELS` | `llm-qwen3-14b,llm-qwen36-27b,llm-gpt-oss-safeguard-20b` |
+| `LIFTWING_PREDICT_MODELS` | `llm-gpt-oss-safeguard-20b` (must also be allowlisted) |
 | `LIFTWING_MAX_TOKENS` | `16384` |
 | `LIFTWING_MAX_BODY_BYTES` | `204800` |
 | `LIFTWING_TIMEOUT_MS` | `120000` |
@@ -216,7 +247,7 @@ job's rate in mind.
 
 ```sh
 npm install
-npm test                                    # 36 tests, no network required
+npm test                                    # no network required
 HF_TOKEN=… LIFTWING_TOKEN=… PORT=8000 npm start
 ```
 
