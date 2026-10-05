@@ -489,3 +489,9 @@ test("/liftwing rejects streaming for a :predict model", async () => {
     assert.equal(stub.lastRequest, null);
   });
 });
+
+test("default Lift Wing allowlist includes llm-qwen38-27b on the OpenAI-compatible path", () => {
+  const { liftwing } = loadConfig({});
+  assert.ok(liftwing.allowedModels.has("llm-qwen38-27b"));
+  assert.ok(!liftwing.predictModels.has("llm-qwen38-27b"));
+});
