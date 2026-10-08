@@ -209,7 +209,7 @@ Everything is an envvar; nothing is committed. On Toolforge use
 | --- | --- |
 | `PORT` | `8000` (assigned by Toolforge — never hardcode) |
 | `LIFTWING_BASE` | `https://api.wikimedia.org/service/lw/inference/v1/models` |
-| `LIFTWING_ALLOWED_MODELS` | `llm-qwen3-14b,llm-qwen36-27b,llm-gpt-oss-safeguard-20b` |
+| `LIFTWING_ALLOWED_MODELS` | `llm-qwen3-14b,llm-qwen36-27b,llm-qwen38-27b,llm-gpt-oss-safeguard-20b` |
 | `LIFTWING_PREDICT_MODELS` | `llm-gpt-oss-safeguard-20b` (must also be allowlisted) |
 | `LIFTWING_MAX_TOKENS` | `16384` |
 | `LIFTWING_MAX_BODY_BYTES` | `204800` |
