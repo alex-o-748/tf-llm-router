@@ -433,6 +433,27 @@ test("the rate limiter is off by default and enforced when configured", async ()
   );
 });
 
+// gpt-oss-safeguard-20b now speaks chat-completions on Lift Wing; its old
+// `:predict` route 404s. The translation is kept for any model that still
+// needs it, so these tests opt a model in explicitly.
+const PREDICT_ENV = { LIFTWING_PREDICT_MODELS: "llm-gpt-oss-safeguard-20b" };
+
+test("/liftwing sends gpt-oss-safeguard-20b to the chat-completions endpoint by default", async () => {
+  await withServers(async ({ stub, proxy }) => {
+    const res = await post(proxy, "/liftwing", {
+      ...VALID_REQUEST,
+      model: "llm-gpt-oss-safeguard-20b",
+    });
+    assert.equal(res.status, 200);
+    assert.equal(
+      stub.lastRequest.path,
+      "/models/llm-gpt-oss-safeguard-20b/openai/v1/chat/completions",
+    );
+    assert.equal(stub.lastRequest.body.model, "llm-gpt-oss-safeguard-20b");
+    assert.equal(stub.lastRequest.body.developer_prompt, undefined);
+  });
+});
+
 test("/liftwing translates a :predict model to and from chat-completions", async () => {
   await withServers(async ({ stub, proxy }) => {
     stub.reply = {
@@ -463,7 +484,7 @@ test("/liftwing translates a :predict model to and from chat-completions", async
     );
     assert.equal(json.choices[0].finish_reason, "stop");
     assert.equal(res.headers.get("access-control-allow-origin"), WIKI_ORIGIN);
-  });
+  }, PREDICT_ENV);
 });
 
 test("/liftwing passes :predict upstream errors through", async () => {
@@ -475,7 +496,7 @@ test("/liftwing passes :predict upstream errors through", async () => {
     });
     assert.equal(res.status, 429);
     assert.equal(res.headers.get("retry-after"), "5");
-  });
+  }, PREDICT_ENV);
 });
 
 test("/liftwing rejects streaming for a :predict model", async () => {
@@ -487,5 +508,5 @@ test("/liftwing rejects streaming for a :predict model", async () => {
     });
     assert.equal(res.status, 400);
     assert.equal(stub.lastRequest, null);
-  });
+  }, PREDICT_ENV);
 });
