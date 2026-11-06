@@ -145,7 +145,12 @@ request for these models and returns the usual chat-completions response
 - `stream: true` is rejected with `400`, since `:predict` does not stream.
 
 When Lift Wing adds a chat-completions endpoint for a model, removing it from
-`LIFTWING_PREDICT_MODELS` is the whole migration.
+`LIFTWING_PREDICT_MODELS` is the whole migration. That happened to
+gpt-oss-safeguard-20b by 2026-11-06 — its `:predict` route now answers `404
+{"detail":"Not Found"}` — so the list is empty by default. If
+`LIFTWING_PREDICT_MODELS` is set as a Toolforge envvar, delete it
+(`toolforge envvars delete LIFTWING_PREDICT_MODELS`): an empty value falls
+back to the default rather than clearing the list.
 
 ## Behaviour ported from the Worker
 
@@ -210,7 +215,7 @@ Everything is an envvar; nothing is committed. On Toolforge use
 | `PORT` | `8000` (assigned by Toolforge — never hardcode) |
 | `LIFTWING_BASE` | `https://api.wikimedia.org/service/lw/inference/v1/models` |
 | `LIFTWING_ALLOWED_MODELS` | `llm-qwen3-14b,llm-qwen38-27b,llm-gpt-oss-safeguard-20b` |
-| `LIFTWING_PREDICT_MODELS` | `llm-gpt-oss-safeguard-20b` (must also be allowlisted) |
+| `LIFTWING_PREDICT_MODELS` | empty (must also be allowlisted) |
 | `LIFTWING_MAX_TOKENS` | `16384` |
 | `LIFTWING_MAX_BODY_BYTES` | `204800` |
 | `LIFTWING_TIMEOUT_MS` | `120000` |
